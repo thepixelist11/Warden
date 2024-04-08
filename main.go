@@ -70,7 +70,6 @@ func main() {
 	var outputPath = flag.String("o", "", "The optional path of the output json file")
 	var silent = flag.Bool("s", false, "Do not output anything to the console.")
 	var exIcon = flag.Bool("exIcon", true, "Do not get icon data")
-	_ = exIcon
 
 	flag.Parse()
 
