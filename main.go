@@ -65,11 +65,21 @@ type Status struct {
 }
 
 func main() {
-	var bedrock = flag.Bool("b", false, "Bedrock Server?")
-	var ip = flag.String("ip", "0.0.0.0", "The IP of the server")
-	var outputPath = flag.String("o", "", "The optional path of the output json file")
-	var silent = flag.Bool("s", false, "Do not output anything to the console.")
-	var exIcon = flag.Bool("exIcon", true, "Do not get icon data")
+	var bedrock, silent, exIcon, montior *bool
+	var ip, outputPath *string
+
+	flag.BoolVar(bedrock, "b", false, "Bedrock Server?")
+	flag.BoolVar(bedrock, "bedrock", false, "Bedrock Server?")
+	flag.StringVar(ip, "ip", "0.0.0.0", "The IP of the server.")
+	flag.StringVar(outputPath, "o", "", "The optional path of the output json file.")
+	flag.StringVar(outputPath, "output", "", "The optional path of the output json file.")
+	flag.BoolVar(silent, "s", false, "Do not output anything to the console.")
+	flag.BoolVar(silent, "silent", false, "Do not output anything to the console.")
+	flag.BoolVar(exIcon, "ei", true, "Do not get icon data.")
+	flag.BoolVar(exIcon, "exIcon", true, "Do not get icon data.")
+	flag.BoolVar(montior, "m", false, "Whether or not to use the live monitor mode.")
+	flag.BoolVar(montior, "monitor", false, "WWhether or not to use the live monitor mode.")
+	_ = montior
 
 	flag.Parse()
 
