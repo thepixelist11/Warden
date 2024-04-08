@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 )
 
 type Status struct {
@@ -66,7 +67,8 @@ type Status struct {
 func main() {
 	var bedrock = flag.Bool("b", false, "Bedrock Server?")
 	var ip = flag.String("ip", "0.0.0.0", "The IP of the server")
-	// var outputPath = flag.String("o", "", "The optional path of the output json file")
+	var outputPath = flag.String("o", "", "The optional path of the output json file")
+	var silent = flag.Bool("s", false, "Do not output anything to the console.")
 
 	flag.Parse()
 
@@ -80,20 +82,35 @@ func main() {
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
 		fmt.Print(err.Error())
+		return
 	}
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		fmt.Print(err.Error())
+		return
 	}
 
 	defer res.Body.Close()
 	body, readErr := io.ReadAll(res.Body)
 	if readErr != nil {
 		fmt.Print(err.Error())
+		return
 	}
 
 	var status Status
 	json.Unmarshal(body, &status)
 
-	fmt.Println(status.Players.Max)
+	formattedJSON, err := json.MarshalIndent(status, "", "\t")
+	if err != nil {
+		fmt.Print(err.Error())
+		return
+	}
+
+	if *outputPath != "" {
+		os.WriteFile(*outputPath, formattedJSON, 0666)
+	}
+
+	if !*silent {
+		fmt.Print(string(formattedJSON))
+	}
 }
