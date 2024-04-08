@@ -69,6 +69,8 @@ func main() {
 	var ip = flag.String("ip", "0.0.0.0", "The IP of the server")
 	var outputPath = flag.String("o", "", "The optional path of the output json file")
 	var silent = flag.Bool("s", false, "Do not output anything to the console.")
+	var exIcon = flag.Bool("exIcon", true, "Do not get icon data")
+	_ = exIcon
 
 	flag.Parse()
 
@@ -99,6 +101,9 @@ func main() {
 
 	var status Status
 	json.Unmarshal(body, &status)
+	if *exIcon {
+		status.Icon = ""
+	}
 
 	formattedJSON, err := json.MarshalIndent(status, "", "\t")
 	if err != nil {
