@@ -1,12 +1,23 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 	"io"
+	"log"
 	"net/http"
 	"os"
+	"strings"
+
+	ui "github.com/gizak/termui/v3"
+	"github.com/gizak/termui/v3/widgets"
+	"golang.org/x/term"
 )
 
 type Status struct {
@@ -65,7 +76,7 @@ type Status struct {
 }
 
 func main() {
-	var bedrock, silent, exIcon, montior bool
+	var bedrock, silent, exIcon, monitor bool
 	var ip, outputPath string
 
 	flag.BoolVar(&bedrock, "b", false, "Bedrock Server?")
@@ -77,54 +88,119 @@ func main() {
 	flag.BoolVar(&silent, "silent", false, "Do not output anything to the console.")
 	flag.BoolVar(&exIcon, "ei", true, "Do not get icon data.")
 	flag.BoolVar(&exIcon, "exIcon", true, "Do not get icon data.")
-	flag.BoolVar(&montior, "m", false, "Whether or not to use the live monitor mode.")
-	flag.BoolVar(&montior, "monitor", false, "WWhether or not to use the live monitor mode.")
-	_ = montior
+	flag.BoolVar(&monitor, "m", false, "Whether or not to use the live monitor mode.")
+	flag.BoolVar(&monitor, "monitor", false, "Whether or not to use the live monitor mode.")
 
 	flag.Parse()
 
-	apiURL := ""
+	fd := int(os.Stdin.Fd())
+	termOriginal, err := term.GetState(fd)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var apiURL string
 	if bedrock {
 		apiURL = "https://api.mcsrvstat.us/bedrock/3/" + ip
 	} else {
 		apiURL = "https://api.mcsrvstat.us/3/" + ip
 	}
 
+	// Get status
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
-		fmt.Print(err.Error())
-		return
+		log.Fatal(err)
 	}
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		fmt.Print(err.Error())
-		return
+		log.Fatal(err)
 	}
-
 	defer res.Body.Close()
-	body, readErr := io.ReadAll(res.Body)
-	if readErr != nil {
-		fmt.Print(err.Error())
-		return
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		log.Fatal(err)
 	}
-
 	var status Status
 	json.Unmarshal(body, &status)
-	if exIcon {
+
+	if exIcon && !monitor {
 		status.Icon = ""
 	}
 
-	formattedJSON, err := json.MarshalIndent(status, "", "\t")
+	formattedJSON := formatStatus(status)
+
+	if monitor {
+		renderMonitor(status)
+	} else {
+		if outputPath != "" {
+			saveDataToFile(outputPath, formattedJSON)
+		}
+
+		if !silent {
+			printData(string(formattedJSON))
+		}
+	}
+
+	term.Restore(fd, termOriginal)
+}
+
+func printData(jsonData string) {
+	fmt.Println(jsonData)
+}
+
+func saveDataToFile(path string, jsonData []byte) {
+	os.WriteFile(path, jsonData, 0666)
+}
+
+func formatStatus(status Status) []byte {
+	ret, err := json.MarshalIndent(status, "", "\t")
 	if err != nil {
-		fmt.Print(err.Error())
-		return
+		log.Fatal(err)
 	}
+	return ret
+}
 
-	if outputPath != "" {
-		os.WriteFile(outputPath, formattedJSON, 0666)
+func parseIconData(iconData string) string {
+	splitData := strings.Split(iconData, ",")
+	base64Data := splitData[1]
+	return base64Data
+}
+
+func renderMonitor(status Status) {
+	var images []image.Image
+	image, _, err := image.Decode(base64.NewDecoder(base64.StdEncoding, strings.NewReader(parseIconData(status.Icon))))
+	if err != nil {
+		log.Fatalf("failed to decode image: %v", err)
 	}
+	images = append(images, image)
+	if err := ui.Init(); err != nil {
+		log.Fatalf("failed to initialize termui: %v", err)
+	}
+	defer ui.Close()
 
-	if !silent {
-		fmt.Print(string(formattedJSON))
+	img := widgets.NewImage(nil)
+	img.SetRect(0, 0, 40, 20)
+	img.Border = false
+
+	hostname := widgets.NewParagraph()
+	hostname.Text = status.Hostname
+	hostname.SetRect(0, 0, 20, 5)
+	hostname.Border = false
+	hostname.TextStyle.Fg = ui.Color(6)
+
+	render := func() {
+		img.Image = images[0]
+		ui.Render(img, hostname)
+	}
+	render()
+
+	uiEvents := ui.PollEvents()
+	for {
+		e := <-uiEvents
+		switch e.ID {
+		case "q", "<C-c>":
+			return
+		}
+		render()
 	}
 }
