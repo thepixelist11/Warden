@@ -13,6 +13,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path"
 	"strings"
 
 	ui "github.com/gizak/termui/v3"
@@ -76,8 +77,10 @@ type Status struct {
 }
 
 func main() {
+	width, height := getTerminalSize()
+
 	var bedrock, silent, exIcon, monitor bool
-	var ip, outputPath string
+	var ip, outputPath, loadFile string
 
 	flag.BoolVar(&bedrock, "b", false, "Bedrock Server?")
 	flag.BoolVar(&bedrock, "bedrock", false, "Bedrock Server?")
@@ -90,6 +93,8 @@ func main() {
 	flag.BoolVar(&exIcon, "exIcon", true, "Do not get icon data.")
 	flag.BoolVar(&monitor, "m", false, "Whether or not to use the live monitor mode.")
 	flag.BoolVar(&monitor, "monitor", false, "Whether or not to use the live monitor mode.")
+	flag.StringVar(&loadFile, "lf", "", "Debug mode. Intended for development. Will use pre-saved JSON instead of making an api request.")
+	flag.StringVar(&loadFile, "loadFile", "", "Debug mode. Intended for development. Will use pre-saved JSON instead of making an api request.")
 
 	flag.Parse()
 
@@ -99,30 +104,41 @@ func main() {
 		log.Fatal(err)
 	}
 
-	var apiURL string
-	if bedrock {
-		apiURL = "https://api.mcsrvstat.us/bedrock/3/" + ip
-	} else {
-		apiURL = "https://api.mcsrvstat.us/3/" + ip
-	}
+	var body string
+	if loadFile == "" {
+		var apiURL string
+		if bedrock {
+			apiURL = "https://api.mcsrvstat.us/bedrock/3/" + ip
+		} else {
+			apiURL = "https://api.mcsrvstat.us/3/" + ip
+		}
 
-	// Get status
-	req, err := http.NewRequest("GET", apiURL, nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer res.Body.Close()
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		log.Fatal(err)
+		// Get status
+		req, err := http.NewRequest("GET", apiURL, nil)
+		if err != nil {
+			log.Fatal(err)
+		}
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer res.Body.Close()
+		body, err := io.ReadAll(res.Body)
+		_ = body
+		if err != nil {
+			log.Fatal(err)
+		}
+	} else {
+		file, err := os.Open(path.Join(loadFile))
+		if err != nil {
+			log.Fatal(err)
+		}
+		_ = file
 	}
 	var status Status
-	json.Unmarshal(body, &status)
+	// json.Unmarshal(body, &status)
 
+	_ = body
 	if exIcon && !monitor {
 		status.Icon = ""
 	}
@@ -130,7 +146,7 @@ func main() {
 	formattedJSON := formatStatus(status)
 
 	if monitor {
-		renderMonitor(status)
+		renderMonitor(status, width, height)
 	} else {
 		if outputPath != "" {
 			saveDataToFile(outputPath, formattedJSON)
@@ -166,7 +182,8 @@ func parseIconData(iconData string) string {
 	return base64Data
 }
 
-func renderMonitor(status Status) {
+func renderMonitor(status Status, width int, height int) {
+	// termWidth, termHeight := ui.TerminalDimensions()
 	var images []image.Image
 	image, _, err := image.Decode(base64.NewDecoder(base64.StdEncoding, strings.NewReader(parseIconData(status.Icon))))
 	if err != nil {
@@ -179,18 +196,29 @@ func renderMonitor(status Status) {
 	defer ui.Close()
 
 	img := widgets.NewImage(nil)
-	img.SetRect(0, 0, 40, 20)
+	// img.SetRect(0, 0, 20, 15)
 	img.Border = false
 
 	hostname := widgets.NewParagraph()
 	hostname.Text = status.Hostname
-	hostname.SetRect(0, 0, 20, 5)
+	// hostname.SetRect(0, 0, 20, 5)
 	hostname.Border = false
 	hostname.TextStyle.Fg = ui.Color(6)
 
+	grid := ui.NewGrid()
+	grid.SetRect(0, 0, width, height)
+	grid.Set(
+		ui.NewRow(1.0/2,
+			ui.NewCol(1.0, img),
+		),
+		ui.NewRow(1.0/3,
+			ui.NewCol(1.0, hostname),
+		),
+	)
+
 	render := func() {
 		img.Image = images[0]
-		ui.Render(img, hostname)
+		ui.Render(grid)
 	}
 	render()
 
@@ -203,4 +231,15 @@ func renderMonitor(status Status) {
 		}
 		render()
 	}
+}
+
+func getTerminalSize() (int, int) {
+	if !term.IsTerminal(0) {
+		return -1, -1
+	}
+	width, height, err := term.GetSize(0)
+	if err != nil {
+		return -1, -1
+	}
+	return width, height
 }
