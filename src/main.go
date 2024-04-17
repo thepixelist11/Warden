@@ -6,6 +6,8 @@ import (
 	"flag"
 	"fmt"
 	"image"
+
+	"image/color"
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
@@ -19,8 +21,16 @@ import (
 
 	ui "github.com/gizak/termui/v3"
 	"github.com/gizak/termui/v3/widgets"
+
+	xtc "github.com/tomnomnom/xtermcolor"
 	"golang.org/x/term"
 )
+
+type rgb struct {
+	r int
+	g int
+	b int
+}
 
 type Status struct {
 	Online   bool   `json:"online"`
@@ -193,8 +203,10 @@ func renderMonitor(status Status) {
 		log.Fatalf("failed to initialize termui: %v", err)
 	}
 	defer ui.Close()
-
 	img := widgets.NewImage(nil)
+	primColorRGB := getPrimaryImageColor(images[0])
+	primColor := xtc.FromColor(color.RGBA{uint8(primColorRGB.r), uint8(primColorRGB.g), uint8(primColorRGB.b), 0})
+	img.BorderStyle.Fg = ui.Color(primColor)
 
 	topPadding := int(math.Floor(TERMHEIGHT*(1.0/3)*(1.0/5)/2.0)) - 1
 
@@ -244,8 +256,8 @@ func renderMonitor(status Status) {
 
 	motd := widgets.NewParagraph()
 	motd.Text = strings.Join(status.Motd.Clean, "\n")
-	motd.TextStyle.Fg = ui.ColorWhite
-	motd.BorderStyle.Fg = ui.ColorWhite
+	motd.TextStyle.Fg = ui.Color(0)
+	motd.BorderStyle.Fg = ui.Color(0)
 	motd.PaddingLeft = 1
 	motd.PaddingTop = 1
 
@@ -311,4 +323,41 @@ func getPlayerNamesList(status Status) []string {
 		ret = append(ret, player.Name)
 	}
 	return ret
+}
+
+// TODO: Use K-means clustering instead of average color
+func getPrimaryImageColor(img image.Image) rgb {
+	width, height := img.Bounds().Size().X, img.Bounds().Size().Y
+	count := 0
+	var avg rgb
+	avg.r = 0
+	avg.g = 0
+	avg.b = 0
+	for x := 0; x < width; x++ {
+		for y := 0; y < height; y++ {
+			col := img.At(x, y)
+			r, g, b, _ := col.RGBA()
+			rFloat := float64(r) / 65535.0 * 255.0
+			gFloat := float64(g) / 65535.0 * 255.0
+			bFloat := float64(b) / 65535.0 * 255.0
+			if !colorCloseTo(rgb{int(rFloat), int(gFloat), int(bFloat)}, rgb{0, 0, 0}, 30) {
+				avg.r += int(rFloat)
+				avg.g += int(gFloat)
+				avg.b += int(bFloat)
+				count++
+			}
+		}
+	}
+	if count == 0 {
+		return rgb{0, 0, 0}
+	}
+	avg.r /= count
+	avg.g /= count
+	avg.b /= count
+	return avg
+}
+
+func colorCloseTo(col1 rgb, col2 rgb, threshold int) bool {
+	dist := (col2.r-col1.r)*(col2.r-col1.r) + (col2.g-col2.g)*(col2.g-col1.g) + (col2.b-col1.b)*(col2.b-col1.b)
+	return dist < threshold*threshold
 }
