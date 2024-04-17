@@ -11,6 +11,7 @@ import (
 	_ "image/png"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"os"
 	"path"
@@ -76,9 +77,10 @@ type Status struct {
 	} `json:"mods"`
 }
 
-func main() {
-	width, height := getTerminalSize()
+const TERMWIDTH = 160
+const TERMHEIGHT = 80
 
+func main() {
 	var bedrock, silent, exIcon, monitor bool
 	var ip, outputPath, loadFile string
 
@@ -104,7 +106,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	var body string
+	var body []byte
 	if loadFile == "" {
 		var apiURL string
 		if bedrock {
@@ -123,22 +125,20 @@ func main() {
 			log.Fatal(err)
 		}
 		defer res.Body.Close()
-		body, err := io.ReadAll(res.Body)
-		_ = body
+		body, err = io.ReadAll(res.Body)
 		if err != nil {
 			log.Fatal(err)
 		}
 	} else {
-		file, err := os.Open(path.Join(loadFile))
+		file, err := os.ReadFile(path.Join(loadFile))
 		if err != nil {
 			log.Fatal(err)
 		}
-		_ = file
+		body = file
 	}
 	var status Status
-	// json.Unmarshal(body, &status)
+	json.Unmarshal(body, &status)
 
-	_ = body
 	if exIcon && !monitor {
 		status.Icon = ""
 	}
@@ -146,7 +146,7 @@ func main() {
 	formattedJSON := formatStatus(status)
 
 	if monitor {
-		renderMonitor(status, width, height)
+		renderMonitor(status)
 	} else {
 		if outputPath != "" {
 			saveDataToFile(outputPath, formattedJSON)
@@ -182,8 +182,7 @@ func parseIconData(iconData string) string {
 	return base64Data
 }
 
-func renderMonitor(status Status, width int, height int) {
-	// termWidth, termHeight := ui.TerminalDimensions()
+func renderMonitor(status Status) {
 	var images []image.Image
 	image, _, err := image.Decode(base64.NewDecoder(base64.StdEncoding, strings.NewReader(parseIconData(status.Icon))))
 	if err != nil {
@@ -196,23 +195,84 @@ func renderMonitor(status Status, width int, height int) {
 	defer ui.Close()
 
 	img := widgets.NewImage(nil)
-	// img.SetRect(0, 0, 20, 15)
-	img.Border = false
+
+	topPadding := int(math.Floor(TERMHEIGHT*(1.0/3)*(1.0/5)/2.0)) - 1
 
 	hostname := widgets.NewParagraph()
 	hostname.Text = status.Hostname
-	// hostname.SetRect(0, 0, 20, 5)
-	hostname.Border = false
-	hostname.TextStyle.Fg = ui.Color(6)
+	hostname.TextStyle.Fg = ui.ColorCyan
+	hostname.BorderStyle.Fg = ui.ColorCyan
+	hostname.PaddingTop = topPadding
+	hostname.PaddingLeft = 1
+
+	serverOnline := widgets.NewParagraph()
+	if status.Online {
+		serverOnline.Text = "Online"
+		serverOnline.TextStyle.Fg = ui.Color(118)
+		serverOnline.BorderStyle.Fg = ui.Color(118)
+	} else {
+		serverOnline.Text = "Offline"
+		serverOnline.TextStyle.Fg = ui.ColorRed
+		serverOnline.BorderStyle.Fg = ui.ColorRed
+	}
+	serverOnline.PaddingTop = topPadding
+	serverOnline.PaddingLeft = 1
+
+	onlinePlayers := widgets.NewParagraph()
+	onlinePlayers.Text = fmt.Sprintf("Online: %d/%d", status.Players.Online, status.Players.Max)
+	onlinePlayers.TextStyle.Fg = ui.ColorCyan
+	onlinePlayers.BorderStyle.Fg = ui.ColorCyan
+	onlinePlayers.PaddingTop = topPadding
+	onlinePlayers.PaddingLeft = 1
+
+	if status.Port == "" {
+		status.Port = "25565"
+	}
+	ipPort := widgets.NewParagraph()
+	ipPort.Text = fmt.Sprintf("%s:%s", status.IP, status.Port)
+	ipPort.TextStyle.Fg = ui.Color(184)
+	ipPort.BorderStyle.Fg = ui.Color(184)
+	ipPort.PaddingTop = topPadding
+	ipPort.PaddingLeft = 1
+
+	serverVersion := widgets.NewParagraph()
+	serverVersion.Text = status.Version
+	serverVersion.TextStyle.Fg = ui.Color(105)
+	serverVersion.BorderStyle.Fg = ui.Color(105)
+	serverVersion.PaddingTop = topPadding
+	serverVersion.PaddingLeft = 1
+
+	motd := widgets.NewParagraph()
+	motd.Text = strings.Join(status.Motd.Clean, "\n")
+	motd.TextStyle.Fg = ui.ColorWhite
+	motd.BorderStyle.Fg = ui.ColorWhite
+	motd.PaddingLeft = 1
+	motd.PaddingTop = 1
+
+	playerList := widgets.NewList()
+	playerList.Rows = getPlayerNamesList(status)
+	playerList.WrapText = false
+	playerList.Title = onlinePlayers.Text
+	playerList.TitleStyle.Fg = ui.ColorCyan
+	playerList.BorderStyle.Fg = ui.ColorCyan
 
 	grid := ui.NewGrid()
-	grid.SetRect(0, 0, width, height)
+	grid.SetRect(0, 0, TERMWIDTH, TERMHEIGHT)
 	grid.Set(
-		ui.NewRow(1.0/2,
-			ui.NewCol(1.0, img),
-		),
 		ui.NewRow(1.0/3,
-			ui.NewCol(1.0, hostname),
+			ui.NewCol(1.0/3, img),
+			ui.NewCol(2.0/3,
+				ui.NewRow(1.0/5,
+					ui.NewCol(1.0/2, hostname),
+					ui.NewCol(1.0/2, serverOnline),
+				),
+				ui.NewRow(1.0/5, ipPort),
+				ui.NewRow(1.0/5, serverVersion),
+				ui.NewRow(2.0/5, motd),
+			),
+		),
+		ui.NewRow(2.0/3,
+			ui.NewRow(1.0, playerList),
 		),
 	)
 
@@ -242,4 +302,13 @@ func getTerminalSize() (int, int) {
 		return -1, -1
 	}
 	return width, height
+}
+
+func getPlayerNamesList(status Status) []string {
+	players := status.Players.List
+	var ret []string
+	for _, player := range players {
+		ret = append(ret, player.Name)
+	}
+	return ret
 }
