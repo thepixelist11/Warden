@@ -1,4 +1,2 @@
 bin/*
 !bin/
-./src/test.json
-test*.json
