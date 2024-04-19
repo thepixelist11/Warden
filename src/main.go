@@ -194,19 +194,23 @@ func parseIconData(iconData string) string {
 
 func renderMonitor(status Status) {
 	var images []image.Image
-	image, _, err := image.Decode(base64.NewDecoder(base64.StdEncoding, strings.NewReader(parseIconData(status.Icon))))
-	if err != nil {
-		log.Fatalf("failed to decode image: %v", err)
+	if status.Icon != "" {
+		image, _, err := image.Decode(base64.NewDecoder(base64.StdEncoding, strings.NewReader(parseIconData(status.Icon))))
+		if err != nil {
+			log.Fatalf("failed to decode image: %v", err)
+		}
+		images = append(images, image)
+		if err := ui.Init(); err != nil {
+			log.Fatalf("failed to initialize termui: %v", err)
+		}
+		defer ui.Close()
 	}
-	images = append(images, image)
-	if err := ui.Init(); err != nil {
-		log.Fatalf("failed to initialize termui: %v", err)
-	}
-	defer ui.Close()
 	img := widgets.NewImage(nil)
-	primColorRGB := getPrimaryImageColor(images[0])
-	primColor := xtc.FromColor(color.RGBA{uint8(primColorRGB.r), uint8(primColorRGB.g), uint8(primColorRGB.b), 0})
-	img.BorderStyle.Fg = ui.Color(primColor)
+	if len(images) > 0 {
+		primColorRGB := getPrimaryImageColor(images[0])
+		primColor := xtc.FromColor(color.RGBA{uint8(primColorRGB.r), uint8(primColorRGB.g), uint8(primColorRGB.b), 0})
+		img.BorderStyle.Fg = ui.Color(primColor)
+	}
 
 	topPadding := int(math.Floor(TERMHEIGHT*(1.0/3)*(1.0/5)/2.0)) - 1
 
@@ -256,8 +260,8 @@ func renderMonitor(status Status) {
 
 	motd := widgets.NewParagraph()
 	motd.Text = strings.Join(status.Motd.Clean, "\n")
-	motd.TextStyle.Fg = ui.Color(0)
-	motd.BorderStyle.Fg = ui.Color(0)
+	motd.TextStyle.Fg = ui.Color(2)
+	motd.BorderStyle.Fg = ui.Color(2)
 	motd.PaddingLeft = 1
 	motd.PaddingTop = 1
 
@@ -289,7 +293,9 @@ func renderMonitor(status Status) {
 	)
 
 	render := func() {
-		img.Image = images[0]
+		if len(images) > 0 {
+			img.Image = images[0]
+		}
 		ui.Render(grid)
 	}
 	render()
@@ -320,7 +326,7 @@ func getPlayerNamesList(status Status) []string {
 	players := status.Players.List
 	var ret []string
 	for _, player := range players {
-		ret = append(ret, player.Name)
+		ret = append(ret, fmt.Sprintf(" - %s", player.Name))
 	}
 	return ret
 }
