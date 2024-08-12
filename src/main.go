@@ -331,7 +331,7 @@ func getPlayerNamesList(status Status) []string {
 	return ret
 }
 
-// TODO: Use K-means clustering instead of average color
+// TODO: Use K-means clustering instead of average color.
 func getPrimaryImageColor(img image.Image) rgb {
 	width, height := img.Bounds().Size().X, img.Bounds().Size().Y
 	count := 0
