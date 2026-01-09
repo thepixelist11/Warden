@@ -1,0 +1,45 @@
+{
+  "online": false,
+  "ip": "[2606:2800:21f:cb07:6820:80da:af6b:8b2c]",
+  "port": "",
+  "hostname": "example.com",
+  "debug": {
+    "ping": false,
+    "query": false,
+    "srv": false,
+    "queryismismatch": false,
+    "ipinsrv": false,
+    "animatedmotd": false,
+    "cachehit": false,
+    "cachetime": 1713497173,
+    "cacheexpire": 1713497233,
+    "apiversion": 3
+  },
+  "version": "",
+  "protocol": {
+    "version": 0,
+    "name": ""
+  },
+  "icon": "",
+  "software": "",
+  "map": {
+    "raw": "",
+    "clean": "",
+    "html": ""
+  },
+  "gamemode": "",
+  "serverid": "",
+  "eula_blocked": false,
+  "motd": {
+    "raw": null,
+    "clean": null,
+    "html": null
+  },
+  "players": {
+    "online": 0,
+    "max": 0,
+    "list": null
+  },
+  "plugins": null,
+  "mods": null
+}

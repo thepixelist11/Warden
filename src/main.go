@@ -215,11 +215,15 @@ func renderMonitor(status Status) {
 	topPadding := int(math.Floor(TERMHEIGHT*(1.0/3)*(1.0/5)/2.0)) - 1
 
 	hostname := widgets.NewParagraph()
-	hostname.Text = status.Hostname
 	hostname.TextStyle.Fg = ui.ColorCyan
 	hostname.BorderStyle.Fg = ui.ColorCyan
 	hostname.PaddingTop = topPadding
 	hostname.PaddingLeft = 1
+	if len(status.Hostname) > 0 {
+		hostname.Text = status.Hostname
+	} else {
+		hostname.Text = "NA"
+	}
 
 	serverOnline := widgets.NewParagraph()
 	if status.Online {
@@ -235,11 +239,15 @@ func renderMonitor(status Status) {
 	serverOnline.PaddingLeft = 1
 
 	onlinePlayers := widgets.NewParagraph()
-	onlinePlayers.Text = fmt.Sprintf("Online: %d/%d", status.Players.Online, status.Players.Max)
 	onlinePlayers.TextStyle.Fg = ui.ColorCyan
 	onlinePlayers.BorderStyle.Fg = ui.ColorCyan
 	onlinePlayers.PaddingTop = topPadding
 	onlinePlayers.PaddingLeft = 1
+	if len(fmt.Sprint(status.Players.Online)) > 0 && len(fmt.Sprint(status.Players.Max)) > 0 {
+		onlinePlayers.Text = fmt.Sprintf("Online: %d/%d", status.Players.Online, status.Players.Max)
+	} else {
+		onlinePlayers.Text = ""
+	}
 
 	if status.Port == "" {
 		status.Port = "25565"
@@ -250,6 +258,11 @@ func renderMonitor(status Status) {
 	ipPort.BorderStyle.Fg = ui.Color(184)
 	ipPort.PaddingTop = topPadding
 	ipPort.PaddingLeft = 1
+	if len(status.Hostname) > 0 {
+		onlinePlayers.Text = fmt.Sprintf("Online: %d/%d", status.Players.Online, status.Players.Max)
+	} else {
+		onlinePlayers.Text = ""
+	}
 
 	serverVersion := widgets.NewParagraph()
 	serverVersion.Text = status.Version
